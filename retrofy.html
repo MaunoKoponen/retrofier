@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Retrofier v4 – CRT + Pulp</title>
+<style>
+  body { font-family: system-ui, sans-serif; background:#111; color:#eee; margin:0; padding:20px; }
+  .container { max-width:1450px; margin:0 auto; }
+  h1 { margin-top:0; }
+  .drop { border:2px dashed #555; border-radius:12px; padding:30px; text-align:center; margin-bottom:16px; background:#1a1a1a; }
+  .drop.dragover { border-color:#0af; background:#0a1a2a; }
+  .controls { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:12px; margin-bottom:16px; }
+  label { display:block; font-size:0.82em; margin-bottom:3px; }
+  select, input[type=range] { width:100%; }
+  .preview { display:flex; gap:16px; flex-wrap:wrap; }
+  canvas, img { max-width:100%; border:1px solid #333; background:#000; image-rendering:pixelated; }
+  #ascii { font-family: 'Courier New', Consolas, monospace; font-size:9px; line-height:9px; white-space:pre; overflow:auto; max-height:700px; background:#000; padding:8px; border:1px solid #333; }
+  .panel { flex:1; min-width:280px; }
+  button { background:#0af; color:#000; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Retrofier <small style="font-weight:400;color:#888;">v4 – CRT + Pulp Magazine</small></h1>
+  
+  <div class="drop" id="drop">
+    Drop an image here or <input type="file" id="file" accept="image/*" style="display:none">
+    <button onclick="document.getElementById('file').click()">Choose file</button>
+  </div>
+
+  <div class="controls">
+    <div>
+      <label>Pixel scale: <span id="scaleVal">4</span>x</label>
+      <input type="range" id="scale" min="1" max="16" value="4">
+    </div>
+    <div>
+      <label>Palette</label>
+      <select id="palette">
+        <optgroup label="Handhelds">
+          <option value="gameboy">Game Boy</option>
+          <option value="gbc">Game Boy Color</option>
+        </optgroup>
+        <optgroup label="Early PCs">
+          <option value="cga">CGA</option>
+          <option value="ega">EGA</option>
+          <option value="vga16">VGA 16</option>
+          <option value="vga256">VGA 256</option>
+        </optgroup>
+        <optgroup label="Home Computers">
+          <option value="amiga">Amiga</option>
+          <option value="atari">Atari ST</option>
+          <option value="mac">Mac 1-bit</option>
+          <option value="mac4">Mac 4-bit</option>
+        </optgroup>
+        <optgroup label="Other">
+          <option value="pico8">Pico-8</option>
+          <option value="mono">Monochrome</option>
+          <option value="sepia">Sepia</option>
+          <option value="pulp">Pulp Ink</option>
+          <option value="custom">Custom bits</option>
+        </optgroup>
+      </select>
+    </div>
+    <div id="bitsWrap" style="display:none;">
+      <label>Bit depth: <span id="bitsVal">4</span></label>
+      <input type="range" id="bits" min="1" max="8" value="4">
+    </div>
+    <div>
+      <label>Scanline H: <span id="scanHVal">0.35</span></label>
+      <input type="range" id="scanH" min="0" max="1" step="0.05" value="0.35">
+    </div>
+    <div>
+      <label>Scanline V: <span id="scanVVal">0.25</span></label>
+      <input type="range" id="scanV" min="0" max="1" step="0.05" value="0.25">
+    </div>
+    <div>
+      <label>Scanline thickness</label>
+      <input type="range" id="scanThick" min="1" max="4" value="2">
+    </div>
+    <div>
+      <label><input type="checkbox" id="ditherOn" checked> Floyd-Steinberg</label>
+    </div>
+
+    <div style="grid-column:1/-1; border-top:1px solid #333; margin-top:8px; padding-top:8px;"><strong>CRT</strong></div>
+    <div>
+      <label><input type="checkbox" id="crtOn"> Enable CRT</label>
+    </div>
+    <div>
+      <label>Curvature: <span id="crtCurveVal">0.15</span></label>
+      <input type="range" id="crtCurve" min="0" max="0.4" step="0.01" value="0.15">
+    </div>
+    <div>
+      <label>Chromatic: <span id="crtChromaVal">1.5</span></label>
+      <input type="range" id="crtChroma" min="0" max="4" step="0.1" value="1.5">
+    </div>
+    <div>
+      <label>Glow: <span id="crtGlowVal">0.25</span></label>
+      <input type="range" id="crtGlow" min="0" max="0.6" step="0.05" value="0.25">
+    </div>
+    <div>
+      <label>Vignette: <span id="crtVigVal">0.4</span></label>
+      <input type="range" id="crtVig" min="0" max="0.8" step="0.05" value="0.4">
+    </div>
+
+    <div style="grid-column:1/-1; border-top:1px solid #333; margin-top:8px; padding-top:8px;"><strong>Pulp Magazine</strong></div>
+    <div>
+      <label><input type="checkbox" id="pulpOn"> Enable Pulp Print</label>
+    </div>
+    <div>
+      <label>Halftone size: <span id="pulpDotVal">4</span></label>
+      <input type="range" id="pulpDot" min="2" max="12" value="4">
+    </div>
+    <div>
+      <label>Paper noise: <span id="pulpNoiseVal">0.15</span></label>
+      <input type="range" id="pulpNoise" min="0" max="0.4" step="0.05" value="0.15">
+    </div>
+    <div>
+      <label>Misregister: <span id="pulpMisVal">1</span></label>
+      <input type="range" id="pulpMis" min="0" max="3" step="0.5" value="1">
+    </div>
+
+    <div style="grid-column:1/-1; border-top:1px solid #333; margin-top:8px; padding-top:8px;"><strong>ASCII</strong></div>
+    <div>
+      <label><input type="checkbox" id="asciiOn"> Enable ASCII</label>
+    </div>
+    <div>
+      <label>Char set</label>
+      <select id="asciiSet">
+        <option value="standard">Standard</option>
+        <option value="dense">Dense</option>
+        <option value="blocks">Blocks</option>
+        <option value="inverted">Inverted</option>
+      </select>
+    </div>
+    <div>
+      <label>Width density: <span id="asciiWVal">1.0</span></label>
+      <input type="range" id="asciiW" min="0.4" max="2.0" step="0.1" value="1.0">
+    </div>
+    <div>
+      <label>Height density: <span id="asciiHVal">0.5</span></label>
+      <input type="range" id="asciiH" min="0.3" max="1.2" step="0.1" value="0.5">
+    </div>
+    <div>
+      <label><input type="checkbox" id="asciiColor"> Color ASCII</label>
+    </div>
+    <div>
+      <label><input type="checkbox" id="asciiInvert"> Invert</label>
+    </div>
+  </div>
+
+  <div class="preview">
+    <div class="panel">
+      <h3>Original</h3>
+      <img id="original" alt="Original">
+    </div>
+    <div class="panel">
+      <h3 id="outputTitle">Retrofied</h3>
+      <canvas id="output"></canvas>
+      <div id="ascii" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PALETTES = {
+  gameboy: [[15,56,15],[48,98,48],[139,172,15],[155,188,15]],
+  gbc: [[0,0,0],[48,80,48],[136,192,112],[216,248,192],[0,0,168],[168,0,0],[168,168,0],[255,255,255]],
+  cga: [[0,0,0],[0,255,255],[255,0,255],[255,255,255]],
+  ega: [[0,0,0],[0,0,170],[0,170,0],[0,170,170],[170,0,0],[170,0,170],[170,85,0],[170,170,170],[85,85,85],[85,85,255],[85,255,85],[85,255,255],[255,85,85],[255,85,255],[255,255,85],[255,255,255]],
+  vga16: [[0,0,0],[0,0,170],[0,170,0],[0,170,170],[170,0,0],[170,0,170],[170,85,0],[170,170,170],[85,85,85],[85,85,255],[85,255,85],[85,255,255],[255,85,85],[255,85,255],[255,255,85],[255,255,255]],
+  vga256: [[0,0,0],[0,0,170],[0,170,0],[0,170,170],[170,0,0],[170,0,170],[170,85,0],[192,192,192],[85,85,85],[85,85,255],[85,255,85],[85,255,255],[255,85,85],[255,85,255],[255,255,85],[255,255,255],[32,32,32],[64,64,64],[96,96,96],[128,128,128],[160,160,160],[192,192,192],[224,224,224]],
+  amiga: [[0,0,0],[255,255,255],[136,0,0],[170,255,238],[204,68,204],[0,204,85],[0,0,170],[238,238,119],[221,136,85],[102,68,0],[255,119,119],[51,51,51],[119,119,119],[170,255,102],[0,136,255],[187,187,187]],
+  atari: [[0,0,0],[255,255,255],[255,0,0],[0,255,0],[0,0,255],[255,255,0],[255,0,255],[0,255,255],[128,128,128],[192,192,192],[128,0,0],[0,128,0],[0,0,128],[128,128,0],[128,0,128],[0,128,128]],
+  mac: [[0,0,0],[255,255,255]],
+  mac4: [[0,0,0],[85,85,85],[170,170,170],[255,255,255]],
+  pico8: [[0,0,0],[29,43,83],[126,37,83],[0,135,81],[171,82,54],[95,87,79],[194,195,199],[255,241,232],[255,0,77],[255,163,0],[255,236,39],[0,228,54],[41,173,255],[131,118,156],[255,119,168],[255,204,170]],
+  mono: [[0,0,0],[255,255,255]],
+  sepia: [[0,0,0],[112,66,20],[181,101,29],[255,200,150]],
+  pulp: [[40,20,10],[180,40,20],[220,180,60],[30,30,30],[240,230,200]]
+};
+
+const ASCII_SETS = {
+  standard: " .:-=+*#%@",
+  dense: " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$",
+  blocks: " ░▒▓█",
+  inverted: "@%#*+=-:. "
+};
+
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+const originalImg = document.getElementById('original');
+const canvas = document.getElementById('output');
+const asciiDiv = document.getElementById('ascii');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+let sourceImage = null;
+
+function setupDrop() {
+  ['dragenter','dragover','dragleave','drop'].forEach(ev => {
+    drop.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); });
+  });
+  drop.addEventListener('dragover', () => drop.classList.add('dragover'));
+  drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+  drop.addEventListener('drop', e => {
+    drop.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file?.type.startsWith('image/')) loadImage(file);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) loadImage(fileInput.files[0]);
+  });
+}
+
+function loadImage(file) {
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    sourceImage = img;
+    originalImg.src = url;
+    process();
+  };
+  img.src = url;
+}
+
+function nearestColor(r, g, b, palette) {
+  let minDist = Infinity, best = palette[0];
+  for (const c of palette) {
+    const dr = r - c[0], dg = g - c[1], db = b - c[2];
+    const dist = dr*dr + dg*dg + db*db;
+    if (dist < minDist) { minDist = dist; best = c; }
+  }
+  return best;
+}
+
+function applyCRT(srcCanvas, curve, chroma, glow, vig) {
+  const w = srcCanvas.width, h = srcCanvas.height;
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const octx = out.getContext('2d');
+  const sctx = srcCanvas.getContext('2d');
+  const srcData = sctx.getImageData(0, 0, w, h);
+  const dstData = octx.createImageData(w, h);
+  const sd = srcData.data, dd = dstData.data;
+
+  const cx = w / 2, cy = h / 2;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      // Barrel distortion
+      let nx = (x - cx) / cx;
+      let ny = (y - cy) / cy;
+      const r2 = nx*nx + ny*ny;
+      const factor = 1 + curve * r2;
+      nx *= factor; ny *= factor;
+      const sx = Math.floor(cx + nx * cx);
+      const sy = Math.floor(cy + ny * cy);
+
+      const di = (y * w + x) * 4;
+      if (sx < 0 || sx >= w || sy < 0 || sy >= h) {
+        dd[di] = dd[di+1] = dd[di+2] = 0; dd[di+3] = 255;
+        continue;
+      }
+
+      // Chromatic aberration
+      const shift = chroma;
+      const rIdx = ((sy * w + Math.min(w-1, sx + shift)) * 4);
+      const gIdx = ((sy * w + sx) * 4);
+      const bIdx = ((sy * w + Math.max(0, sx - shift)) * 4);
+
+      dd[di]   = sd[rIdx] || 0;
+      dd[di+1] = sd[gIdx+1] || 0;
+      dd[di+2] = sd[bIdx+2] || 0;
+      dd[di+3] = 255;
+    }
+  }
+  octx.putImageData(dstData, 0, 0);
+
+  // Glow
+  if (glow > 0) {
+    octx.globalCompositeOperation = 'lighter';
+    octx.globalAlpha = glow;
+    octx.filter = 'blur(3px)';
+    octx.drawImage(out, 0, 0);
+    octx.filter = 'none';
+    octx.globalAlpha = 1;
+    octx.globalCompositeOperation = 'source-over';
+  }
+
+  // Vignette
+  if (vig > 0) {
+    const grad = octx.createRadialGradient(cx, cy, Math.min(w,h)*0.3, cx, cy, Math.min(w,h)*0.7);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, `rgba(0,0,0,${vig})`);
+    octx.fillStyle = grad;
+    octx.fillRect(0, 0, w, h);
+  }
+  return out;
+}
+
+function applyPulp(srcCanvas, dotSize, noiseAmt, misreg) {
+  const w = srcCanvas.width, h = srcCanvas.height;
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const octx = out.getContext('2d');
+  octx.fillStyle = '#f4e8c1'; // paper
+  octx.fillRect(0, 0, w, h);
+
+  const sctx = srcCanvas.getContext('2d');
+  const src = sctx.getImageData(0, 0, w, h).data;
+
+  // Halftone
+  for (let y = 0; y < h; y += dotSize) {
+    for (let x = 0; x < w; x += dotSize) {
+      let r = 0, g = 0, b = 0, cnt = 0;
+      for (let dy = 0; dy < dotSize && y+dy < h; dy++) {
+        for (let dx = 0; dx < dotSize && x+dx < w; dx++) {
+          const i = ((y+dy)*w + (x+dx)) * 4;
+          r += src[i]; g += src[i+1]; b += src[i+2]; cnt++;
+        }
+      }
+      if (!cnt) continue;
+      r /= cnt; g /= cnt; b /= cnt;
+      const bright = (r + g + b) / 3;
+      const radius = (1 - bright/255) * (dotSize * 0.55);
+
+      // Slight misregistration
+      const ox = (Math.random() - 0.5) * misreg;
+      const oy = (Math.random() - 0.5) * misreg;
+
+      octx.fillStyle = `rgb(${Math.min(255, r*0.8)}, ${Math.min(255, g*0.4)}, ${Math.min(255, b*0.2)})`;
+      octx.beginPath();
+      octx.arc(x + dotSize/2 + ox, y + dotSize/2 + oy, Math.max(0.5, radius), 0, Math.PI*2);
+      octx.fill();
+    }
+  }
+
+  // Paper noise
+  if (noiseAmt > 0) {
+    const noise = octx.getImageData(0, 0, w, h);
+    const nd = noise.data;
+    for (let i = 0; i < nd.length; i += 4) {
+      const n = (Math.random() - 0.5) * noiseAmt * 80;
+      nd[i] = Math.max(0, Math.min(255, nd[i] + n));
+      nd[i+1] = Math.max(0, Math.min(255, nd[i+1] + n * 0.8));
+      nd[i+2] = Math.max(0, Math.min(255, nd[i+2] + n * 0.5));
+    }
+    octx.putImageData(noise, 0, 0);
+  }
+  return out;
+}
+
+function process() {
+  if (!sourceImage) return;
+
+  const scale = +document.getElementById('scale').value;
+  const paletteName = document.getElementById('palette').value;
+  const bits = +document.getElementById('bits').value;
+  const ditherOn = document.getElementById('ditherOn').checked;
+  const scanH = +document.getElementById('scanH').value;
+  const scanV = +document.getElementById('scanV').value;
+  const scanThick = +document.getElementById('scanThick').value;
+  const crtOn = document.getElementById('crtOn').checked;
+  const crtCurve = +document.getElementById('crtCurve').value;
+  const crtChroma = +document.getElementById('crtChroma').value;
+  const crtGlow = +document.getElementById('crtGlow').value;
+  const crtVig = +document.getElementById('crtVig').value;
+  const pulpOn = document.getElementById('pulpOn').checked;
+  const pulpDot = +document.getElementById('pulpDot').value;
+  const pulpNoise = +document.getElementById('pulpNoise').value;
+  const pulpMis = +document.getElementById('pulpMis').value;
+  const asciiOn = document.getElementById('asciiOn').checked;
+  const asciiSet = document.getElementById('asciiSet').value;
+  const asciiW = +document.getElementById('asciiW').value;
+  const asciiH = +document.getElementById('asciiH').value;
+  const asciiColor = document.getElementById('asciiColor').checked;
+  const asciiInvert = document.getElementById('asciiInvert').checked;
+
+  document.getElementById('scaleVal').textContent = scale;
+  document.getElementById('bitsVal').textContent = bits;
+  document.getElementById('scanHVal').textContent = scanH.toFixed(2);
+  document.getElementById('scanVVal').textContent = scanV.toFixed(2);
+  document.getElementById('crtCurveVal').textContent = crtCurve.toFixed(2);
+  document.getElementById('crtChromaVal').textContent = crtChroma.toFixed(1);
+  document.getElementById('crtGlowVal').textContent = crtGlow.toFixed(2);
+  document.getElementById('crtVigVal').textContent = crtVig.toFixed(2);
+  document.getElementById('pulpDotVal').textContent = pulpDot;
+  document.getElementById('pulpNoiseVal').textContent = pulpNoise.toFixed(2);
+  document.getElementById('pulpMisVal').textContent = pulpMis.toFixed(1);
+  document.getElementById('asciiWVal').textContent = asciiW.toFixed(1);
+  document.getElementById('asciiHVal').textContent = asciiH.toFixed(1);
+  document.getElementById('bitsWrap').style.display = paletteName === 'custom' ? 'block' : 'none';
+
+  const w = sourceImage.width;
+  const h = sourceImage.height;
+  const pw = Math.max(1, Math.floor(w / scale));
+  const ph = Math.max(1, Math.floor(h / scale));
+
+  const tmp = document.createElement('canvas');
+  tmp.width = pw; tmp.height = ph;
+  const tctx = tmp.getContext('2d');
+  tctx.imageSmoothingEnabled = false;
+  tctx.drawImage(sourceImage, 0, 0, pw, ph);
+
+  let imageData = tctx.getImageData(0, 0, pw, ph);
+  const data = imageData.data;
+
+  let palette = PALETTES[paletteName] || PALETTES.mono;
+  if (paletteName === 'custom') {
+    const levels = (1 << bits) - 1;
+    const step = 255 / levels;
+    palette = [];
+    for (let r = 0; r <= levels; r++)
+      for (let g = 0; g <= levels; g++)
+        for (let b = 0; b <= levels; b++)
+          palette.push([Math.round(r * step), Math.round(g * step), Math.round(b * step)]);
+  }
+
+  if (ditherOn) {
+    const err = new Float32Array(pw * ph * 3);
+    for (let y = 0; y < ph; y++) {
+      for (let x = 0; x < pw; x++) {
+        const i = (y * pw + x) * 4;
+        const ei = (y * pw + x) * 3;
+        let r = data[i] + err[ei];
+        let g = data[i+1] + err[ei+1];
+        let b = data[i+2] + err[ei+2];
+        r = Math.max(0, Math.min(255, r));
+        g = Math.max(0, Math.min(255, g));
+        b = Math.max(0, Math.min(255, b));
+        const nc = nearestColor(r, g, b, palette);
+        data[i] = nc[0]; data[i+1] = nc[1]; data[i+2] = nc[2];
+        const er = r - nc[0], eg = g - nc[1], eb = b - nc[2];
+        const distribute = (dx, dy, factor) => {
+          const nx = x + dx, ny = y + dy;
+          if (nx >= 0 && nx < pw && ny >= 0 && ny < ph) {
+            const ni = (ny * pw + nx) * 3;
+            err[ni] += er * factor;
+            err[ni+1] += eg * factor;
+            err[ni+2] += eb * factor;
+          }
+        };
+        distribute(1, 0, 7/16);
+        distribute(-1, 1, 3/16);
+        distribute(0, 1, 5/16);
+        distribute(1, 1, 1/16);
+      }
+    }
+  } else {
+    for (let i = 0; i < data.length; i += 4) {
+      const nc = nearestColor(data[i], data[i+1], data[i+2], palette);
+      data[i] = nc[0]; data[i+1] = nc[1]; data[i+2] = nc[2];
+    }
+  }
+  tctx.putImageData(imageData, 0, 0);
+
+  // Scale up
+  const scaled = document.createElement('canvas');
+  scaled.width = w; scaled.height = h;
+  const sctx = scaled.getContext('2d');
+  sctx.imageSmoothingEnabled = false;
+  sctx.drawImage(tmp, 0, 0, w, h);
+
+  // Scanlines on scaled
+  if (scanH > 0 || scanV > 0) {
+    if (scanH > 0) {
+      sctx.fillStyle = `rgba(0,0,0,${scanH})`;
+      for (let y = 0; y < h; y += scanThick * 2)
+        sctx.fillRect(0, y, w, scanThick);
+    }
+    if (scanV > 0) {
+      sctx.fillStyle = `rgba(0,0,0,${scanV})`;
+      for (let x = 0; x < w; x += scanThick * 2)
+        sctx.fillRect(x, 0, scanThick, h);
+    }
+  }
+
+  let final = scaled;
+  if (pulpOn) final = applyPulp(final, pulpDot, pulpNoise, pulpMis);
+  if (crtOn) final = applyCRT(final, crtCurve, crtChroma, crtGlow, crtVig);
+
+  canvas.style.display = asciiOn ? 'none' : 'block';
+  asciiDiv.style.display = asciiOn ? 'block' : 'none';
+  document.getElementById('outputTitle').textContent = asciiOn ? 'ASCII' : 'Retrofied';
+
+  if (asciiOn) {
+    const aw = Math.max(30, Math.floor(pw * asciiW));
+    const ah = Math.max(15, Math.floor(ph * asciiH));
+    const aTmp = document.createElement('canvas');
+    aTmp.width = aw; aTmp.height = ah;
+    const actx = aTmp.getContext('2d');
+    actx.imageSmoothingEnabled = false;
+    actx.drawImage(tmp, 0, 0, aw, ah);
+    const ad = actx.getImageData(0, 0, aw, ah).data;
+    const chars = ASCII_SETS[asciiSet] || ASCII_SETS.standard;
+    let html = '';
+    for (let y = 0; y < ah; y++) {
+      for (let x = 0; x < aw; x++) {
+        const i = (y * aw + x) * 4;
+        let bright = (ad[i] + ad[i+1] + ad[i+2]) / 3;
+        if (asciiInvert) bright = 255 - bright;
+        const idx = Math.min(chars.length - 1, Math.floor((bright / 255) * (chars.length - 1)));
+        const ch = chars[idx];
+        if (asciiColor) {
+          html += `<span style="color:rgb(${ad[i]},${ad[i+1]},${ad[i+2]})">${ch}</span>`;
+        } else {
+          html += ch;
+        }
+      }
+      html += '\n';
+    }
+    asciiDiv.innerHTML = html;
+  } else {
+    canvas.width = w;
+    canvas.height = h;
+    ctx.drawImage(final, 0, 0);
+  }
+}
+
+const ids = ['scale','palette','bits','scanH','scanV','scanThick','ditherOn','crtOn','crtCurve','crtChroma','crtGlow','crtVig','pulpOn','pulpDot','pulpNoise','pulpMis','asciiOn','asciiSet','asciiW','asciiH','asciiColor','asciiInvert'];
+ids.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', process);
+});
+
+setupDrop();
+</script>
+</body>
+</html>
